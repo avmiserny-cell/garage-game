@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Гараж: Сортировка инструментов</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-wrapper">
+        <!-- Header -->
+        <header class="game-header">
+            <div class="game-title">🔧 ГАРАЖ ⚡</div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-icon">🔨</span>
+                    <div class="stat-info">
+                        <span class="stat-label">СЧЕТ</span>
+                        <span class="stat-value" id="score">0</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">❌</span>
+                    <div class="stat-info">
+                        <span class="stat-label">ОШИБКИ</span>
+                        <span class="stat-value" id="mistakes-value">0</span>
+                    </div>
+                </div>
+                <div class="stat-item chapter-stat">
+                    <span id="chapter-badge" class="chapter-badge">УЧЕНИК</span>
+                    <div class="stat-info">
+                        <span class="stat-label">УРОВЕНЬ</span>
+                        <span class="stat-value" id="level">1/50</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">⏱️</span>
+                    <div class="stat-info">
+                        <span class="stat-label">ВРЕМЯ</span>
+                        <span class="stat-value" id="timer-value">∞</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Combo display -->
+        <div id="combo-display" class="combo-display"></div>
+
+        <!-- Game area -->
+        <div id="game-area"></div>
+
+        <!-- Footer -->
+        <footer class="game-footer">
+            <button class="garage-button" id="resetBtn">
+                <span>🔄</span> ЗАНОВО
+            </button>
+            <button class="garage-button" id="soundToggleBtn">
+                <span id="soundIcon">🔊</span>
+            </button>
+            <button class="garage-button" id="pauseBtn">
+                <span id="pauseIcon">⏸️</span>
+            </button>
+            <button class="garage-button secondary-button" id="leaderboardBtn">
+                <span>🏆</span> РЕКОРДЫ
+            </button>
+            <button class="garage-button secondary-button" id="achievementsBtn">
+                <span>🎖️</span> ДОСТИЖЕНИЯ
+            </button>
+        </footer>
+
+        <!-- Leaderboard modal -->
+        <div id="leaderboard-modal" class="side-modal" style="display:none">
+            <div class="side-modal-content">
+                <div class="side-modal-title">🏆 ТАБЛИЦА РЕКОРДОВ</div>
+                <div id="leaderboard-list"></div>
+                <button class="side-modal-close" id="leaderboardClose">✕</button>
+            </div>
+        </div>
+
+        <!-- Achievements modal -->
+        <div id="achievements-modal" class="side-modal" style="display:none">
+            <div class="side-modal-content">
+                <div class="side-modal-title">🎖️ ДОСТИЖЕНИЯ</div>
+                <div id="achievements-list"></div>
+                <button class="side-modal-close" id="achievementsClose">✕</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    
+    <!-- Yandex Games SDK (async загрузка для GitHub Pages) -->
+    <script async src="https://sdk.games.s3.yandex.net/sdk.js" onload="initYandexSDK()"></script>
+    <script>
+        let ysdk = null;
+        let player = null;
+        window.gameLanguage = 'ru'; // Язык по умолчанию
+        let gameIsReady = false; // Флаг для LoadingAPI.ready
+
+        // Функция инициализации SDK (вызывается после загрузки скрипта)
+        function initYandexSDK() {
+            if (typeof YaGames !== 'undefined') {
+                YaGames.init().then(sdk => {
+                    console.log('✅ Яндекс SDK загружен');
+                    ysdk = sdk;
+                    
+                    // Определение языка (пункт 2.14)
+                    try {
+                        const env = sdk.Environment;
+                        if (env && env.Payload && env.Payload.locale) {
+                            window.gameLanguage = env.Payload.locale.split('-')[0];
+                            console.log('🌐 Язык определён:', window.gameLanguage);
+                        }
+                    } catch(e) { console.log('🌐 Язык по умолчанию: ru'); }
+                    
+                    // Получить плеер
+                    sdk.getPlayer().then(p => {
+                        player = p;
+                        console.log('✅ Player initialized');
+                        // После получения игрока, загружаем прогресс
+                        if (window.loadGameProgress) {
+                            window.loadGameProgress((data) => {
+                                // Эта функция будет определена в script.js
+                                if (window.onYandexDataLoaded) {
+                                    window.onYandexDataLoaded(data);
+                                }
+                            });
+                        }
+                    }).catch(() => {
+                        console.log('👤 Гостевой режим');
+                        // В гостевом режиме тоже пробуем загрузить прогресс? Нет, только локальный.
+                        if (window.onYandexDataLoaded) {
+                            window.onYandexDataLoaded(null); // Передаём null, чтобы использовать локальный
+                        }
+                    });
+                    
+                    // Сигнал "Игра готова" (пункт 1.19.2) - вызываем после загрузки уровня
+                    // Сама игра вызовет эту функцию, когда будет готова
+                    
+                }).catch(err => {
+                    console.warn('❌ Ошибка инициализации SDK:', err);
+                    if (window.onYandexDataLoaded) {
+                        window.onYandexDataLoaded(null); // Используем локальный
+                    }
+                });
+            } else {
+                console.warn('⚠️ Яндекс SDK не найден (возможно, не на платформе Яндекс Игр)');
+                 if (window.onYandexDataLoaded) {
+                    window.onYandexDataLoaded(null); // Используем локальный
+                }
+            }
+        }
+
+        // Функция, которую вызовет игра, когда будет полностью готова
+        window.notifyGameReady = function() {
+            if (ysdk && ysdk.LoadingAPI && !gameIsReady) {
+                ysdk.LoadingAPI.ready();
+                gameIsReady = true;
+                console.log('📡 LoadingAPI.ready() вызван');
+            }
+        };
+
+        // Пауза звука при сворачивании игры (пункт 1.3)
+        document.addEventListener('visibilitychange', function() {
+            if (typeof window.pauseAllSounds === 'function') {
+                if (document.hidden) {
+                    window.pauseAllSounds();
+                    console.log('🔇 Звук приостановлен');
+                } else {
+                    window.resumeAllSounds();
+                    console.log('🔊 Звук возобновлён');
+                }
+            }
+        });
+
+        // Функция показа полноэкранной рекламы
+        window.showFullscreenAd = function(callback) {
+            if (ysdk && ysdk.adv) {
+                ysdk.adv.showFullscreenAdv({
+                    callbacks: {
+                        onClose: function() {
+                            console.log('📺 Реклама закрыта');
+                            if (callback) callback();
+                        },
+                        onError: function(err) {
+                            console.warn('⚠️ Ошибка показа рекламы:', err);
+                            if (callback) callback(); // Всё равно продолжаем
+                        }
+                    }
+                });
+            } else {
+                console.log('⏩ SDK не готов — пропускаем рекламу');
+                if (callback) callback();
+            }
+        };
+        
+        // Функция сохранения прогресса (для Яндекс.Игр)
+        window.saveGameProgress = function(data) {
+            if (player) {
+                player.setData(data, true).catch(() => {});
+            }
+        };
+        
+        // Функция загрузки прогресса
+        window.loadGameProgress = function(callback) {
+            if (player) {
+                player.getData().then(data => {
+                    if (callback) callback(data);
+                }).catch(() => { if (callback) callback(null); });
+            } else {
+                if (callback) callback(null);
+            }
+        };
+    </script>
+</body>
+</html>
